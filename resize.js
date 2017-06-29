@@ -95,9 +95,13 @@ async function rmrf(path) {
 async function convert(args) {
   let proms = [], folder_proms = [];
   for (let arg of args) {
+    let group = [], temp, files;
+    try { [temp, files] = await get_temp_and_files(arg); }
+    catch (e) {
+      console.log(`[${new Date().toLocaleTimeString()}] ${e}`);
+      continue;
+    }
     console.log(`[${new Date().toLocaleTimeString()}] Processing ${arg}...`);
-    let group = [];
-    let [temp, files] = await get_temp_and_files(arg);
     for (let file of files) {
       if (proms.length >= 4) {
         await Promise.race(proms);
