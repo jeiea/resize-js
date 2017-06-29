@@ -95,7 +95,7 @@ async function rmrf(path) {
 async function convert(args) {
   let proms = [], folder_proms = [];
   for (let arg of args) {
-    console.log(`Processing ${arg}...`);
+    console.log(`[${new Date().toLocaleTimeString()}] Processing ${arg}...`);
     let group = [];
     let [temp, files] = await get_temp_and_files(arg);
     for (let file of files) {
@@ -103,9 +103,12 @@ async function convert(args) {
         await Promise.race(proms);
         proms = proms.filter(p => !p.done);
       }
-      console.log(`Process ${file}...`);
+      console.log(`[${new Date().toLocaleTimeString()}] Process ${file}`);
       let prom = resize_jpg(file);
-      prom.then(() => { prom.done = true; });
+      prom.then(() => {
+        console.log(`[${new Date().toLocaleTimeString()}] Processed ${file}`);
+        prom.done = true;
+      });
       proms.push(prom);
       group.push(prom);
     }
@@ -116,7 +119,7 @@ async function convert(args) {
       await rmrf(temp)
     }));
   }
-  await Promise.all(proms + folder_proms);
+  await Promise.all(proms.concat(folder_proms));
 }
 
 if (require.main === module) {
@@ -129,7 +132,7 @@ if (require.main === module) {
     rl.close();
   });
   convert(process.argv.slice(2)).then(() => {
-    console.log("Completed.");
+    console.log(`[${new Date().toLocaleTimeString()}] Complete.`);
     rl.close();
   });
 }
