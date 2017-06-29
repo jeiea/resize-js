@@ -61,24 +61,43 @@ async function spawn_conv(file, optimize) {
   return Buffer.concat(bufs);
 }
 
-async function resize_jpg(file) {
+async function determine_extension(file) {
+  let fd = await fs.open(file, 'r');
+  let buf = new Buffer(8);
+  await fs.read(fd, buf, 0, buf.length, 0);
+  fs.close(fd);
+  let sig = buf.latin1Slice();
+  if (sig.startsWith('\xFF\xD8\xFF')) {
+    return '.jpg';
+  }
+  if (sig.startsWith('PNG')) {
+    return '.png';
+  }
+  if (sig.startsWith('GIF')) {
+    return '.gif';
+  }
+  return null;
+}
+
+async function revise_pic(file) {
   let data = await spawn_conv(file, true);
   if (data === false) {
     console.log(`failure: ${file}`);
     return;
   }
   let stat = await fs.stat(file);
-  if (stat.size < data.length) return;
   
-  let dot_idx = file.lastIndexOf('.');
-  let sep_idx = file.lastIndexOf('/');
-  let target = sep_idx < dot_idx
-  ? file.substr(0, dot_idx) + '.jpg'
-  : file + '.jpg';
+  let base = file.slice(0, file.lastIndexOf('.'));
+  if (stat.size < data.length) {
+    let ext = await determine_extension(file);
+    if (file.endsWith(ext)) return;
+    return fs.rename(file, base + ext);
+  }
+  
+  let target = base + '.jpg';
   await fs.writeFile(target, data);
   
-  if (file !== target)
-  await fs.remove(file);
+  if (file !== target) await fs.remove(file);
 }
 
 async function rmrf(path) {
@@ -108,7 +127,7 @@ async function convert(args) {
         proms = proms.filter(p => !p.done);
       }
       console.log(`[${new Date().toLocaleTimeString()}] Process ${file}`);
-      let prom = resize_jpg(file);
+      let prom = revise_pic(file);
       prom.then(() => {
         console.log(`[${new Date().toLocaleTimeString()}] Processed ${file}`);
         prom.done = true;
@@ -117,10 +136,13 @@ async function convert(args) {
       group.push(prom);
     }
     if (temp) folder_proms.push(Promise.all(group).then(async() => {
-      await fs.remove(arg);
-      let p7z = popen.spawn('exe/7za.exe', ['a', arg, '-y', temp + '/*']);
-      await wait_child(p7z); 
-      await rmrf(temp)
+      try {
+        await fs.remove(arg);
+        let p7z = popen.spawn('exe/7za.exe', ['a', arg, '-y', temp + '/*']);
+        await wait_child(p7z); 
+        await rmrf(temp)
+      }
+      catch (e) {}
     }));
   }
   await Promise.all(proms.concat(folder_proms));
