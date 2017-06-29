@@ -41,7 +41,7 @@ async function get_temp_and_files(arg) {
 
 async function spawn_conv(file, optimize) {
   let convert_opt = [file, '-normalize', '-resize', '1920x1080>']
-  .concat(optimize ? ['png:-'] : ['-quality', '93', 'jpg:-']);
+  .concat(optimize ? ['png:-'] : ['-define', 'webp:lossless=true', 'webp:-']);
   let guetzli_opt = ['--quality', '95', '-', '-'];
   
   let convert = popen.spawn('exe/convert.exe', convert_opt);
@@ -80,7 +80,7 @@ async function determine_extension(file) {
 }
 
 async function revise_pic(file) {
-  let data = await spawn_conv(file, true);
+  let data = await spawn_conv(file, false);
   if (data === false) {
     console.log(`failure: ${file}`);
     return;
@@ -94,7 +94,7 @@ async function revise_pic(file) {
     return fs.rename(file, base + ext);
   }
   
-  let target = base + '.jpg';
+  let target = base + '.webp';
   await fs.writeFile(target, data);
   
   if (file !== target) await fs.remove(file);
