@@ -149,15 +149,19 @@ async function convert(args) {
 }
 
 if (require.main === module) {
+  let pushd = process.cwd();
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
   process.on('uncaughtException', err => {
     rl.question(`uncaught: ${err}`, () => rl.close());
+    process.chdir(pushd);
   });
+  process.chdir(__dirname);
   convert(process.argv.slice(2)).then(() => {
     console.log(`[${new Date().toLocaleTimeString()}] Complete.`);
+    process.chdir(pushd);
     rl.close();
   });
 }
