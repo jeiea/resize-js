@@ -154,8 +154,7 @@ if (require.main === module) {
     output: process.stdout
   });
   process.on('uncaughtException', err => {
-    rl.question(`uncaught: ${err}`);
-    rl.close();
+    rl.question(`uncaught: ${err}`, () => rl.close());
   });
   convert(process.argv.slice(2)).then(() => {
     console.log(`[${new Date().toLocaleTimeString()}] Complete.`);
