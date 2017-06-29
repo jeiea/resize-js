@@ -1,6 +1,7 @@
 ﻿const fs = require('fs-extra');
 const path = require('path');
 const popen = require('child_process');
+const readline = require('readline');
 const stream = require('stream');
 
 async function wait_child(child) {
@@ -38,18 +39,35 @@ async function get_temp_and_files(arg) {
   }
 }
 
-async function resize_jpg(file) {
-  let tmp = file + '.tmp';
-  let convert_resize = [file, '-normalize', '-resize', '1920x1080>', '-quality', '93', 'jpg:-'];
+async function spawn_conv(file, optimize) {
+  let convert_opt = [file, '-normalize', '-resize', '1920x1080>']
+  .concat(optimize ? ['png:-'] : ['-quality', '93', 'jpg:-']);
+  let guetzli_opt = ['--quality', '95', '-', '-'];
   
-  let convert = popen.spawn('exe/convert.exe', convert_resize);
-  let bufs = [];
-  convert.stdout.on('data', d => { bufs.push(d); });
+  let convert = popen.spawn('exe/convert.exe', convert_opt);
   convert.stderr.pipe(process.stdout);
-  if (await wait_child(convert) != 0) return;
-  
+  let bufs = [];
+  if (optimize) {
+    let guetzli = popen.spawn('exe/guetzli.exe', guetzli_opt);
+    guetzli.stderr.pipe(process.stdout);
+    guetzli.stdout.on('data', d => { bufs.push(d); });
+    convert.stdout.pipe(guetzli.stdin);
+    if (await wait_child(guetzli) != 0) return false;
+  }
+  else {
+    convert.stdout.on('data', d => { bufs.push(d); });
+    if (await wait_child(convert) != 0) return false;
+  }
+  return Buffer.concat(bufs);
+}
+
+async function resize_jpg(file) {
+  let data = await spawn_conv(file, true);
+  if (data === false) {
+    console.log(`failure: ${file}`);
+    return;
+  }
   let stat = await fs.stat(file);
-  let data = Buffer.concat(bufs);
   if (stat.size < data.length) return;
   
   let dot_idx = file.lastIndexOf('.');
@@ -75,8 +93,9 @@ async function rmrf(path) {
 };
 
 async function convert(args) {
-  let proms = [];
+  let proms = [], folder_proms = [];
   for (let arg of args) {
+    console.log(`Processing ${arg}...`);
     let group = [];
     let [temp, files] = await get_temp_and_files(arg);
     for (let file of files) {
@@ -84,20 +103,33 @@ async function convert(args) {
         await Promise.race(proms);
         proms = proms.filter(p => !p.done);
       }
+      console.log(`Process ${file}...`);
       let prom = resize_jpg(file);
-      prom.then(() => {prom.done = true;});
+      prom.then(() => { prom.done = true; });
       proms.push(prom);
       group.push(prom);
     }
-    if (temp) Promise.all(group).then(async() => {
+    if (temp) folder_proms.push(Promise.all(group).then(async() => {
       await fs.remove(arg);
       let p7z = popen.spawn('exe/7za.exe', ['a', arg, '-y', temp + '/*']);
       await wait_child(p7z); 
       await rmrf(temp)
-    });
+    }));
   }
+  await Promise.all(proms + folder_proms);
 }
 
 if (require.main === module) {
-  convert(process.argv.slice(2));
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  process.on('uncaughtException', err => {
+    rl.question(`uncaught: ${err}`);
+    rl.close();
+  });
+  convert(process.argv.slice(2)).then(() => {
+    console.log("Completed.");
+    rl.close();
+  });
 }
