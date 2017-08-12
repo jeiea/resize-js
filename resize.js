@@ -43,7 +43,7 @@ async function spawn_conv(file, optimize) {
   let convert_opt = [file, '-normalize', '-resize', '1920x1080>']
   .concat(optimize ? ['png:-'] : ['-define', 'webp:lossless=true', 'webp:-']);
   let guetzli_opt = ['--quality', '95', '-', '-'];
-  
+
   let convert = popen.spawn('exe/convert.exe', convert_opt);
   convert.stderr.pipe(process.stdout);
   let bufs = [];
@@ -63,7 +63,7 @@ async function spawn_conv(file, optimize) {
 
 async function determine_extension(file) {
   let fd = await fs.open(file, 'r');
-  let buf = new Buffer(8);
+  let buf = new Buffer(12);
   await fs.read(fd, buf, 0, buf.length, 0);
   fs.close(fd);
   let sig = buf.latin1Slice();
@@ -76,6 +76,9 @@ async function determine_extension(file) {
   if (sig.startsWith('GIF')) {
     return '.gif';
   }
+  if (sig.startsWith('RIFF') && sig.substr(8, 4) === 'WEBP') {
+    return '.webp';
+  }
   return null;
 }
 
@@ -86,17 +89,17 @@ async function revise_pic(file) {
     return;
   }
   let stat = await fs.stat(file);
-  
+
   let base = file.slice(0, file.lastIndexOf('.'));
   if (stat.size < data.length) {
     let ext = await determine_extension(file);
-    if (file.endsWith(ext)) return;
+    if (ext === null || file.endsWith(ext)) return;
     return fs.rename(file, base + ext);
   }
-  
+
   let target = base + '.webp';
   await fs.writeFile(target, data);
-  
+
   if (file !== target) await fs.remove(file);
 }
 
@@ -139,7 +142,7 @@ async function convert(args) {
       try {
         await fs.remove(arg);
         let p7z = popen.spawn('exe/7za.exe', ['a', arg, '-y', temp + '/*']);
-        await wait_child(p7z); 
+        await wait_child(p7z);
         await rmrf(temp)
       }
       catch (e) {}
