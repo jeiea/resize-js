@@ -19,12 +19,24 @@ async function wait(fn) {
   });
 }
 
+// Throws error message
+async function seven_zip(...args) {
+  let msg = []
+  let exe = path.join(__dirname, 'exe/7za.exe');
+  let p7z = popen.spawn(exe, args);
+  p7z.stdout.on('data', d => { msg.push(d); });
+  p7z.stderr.on('data', d => { msg.push(d); });
+  let ret = await wait_child(p7z);
+  if (ret > 1) throw `7za error occured: ${ret}\n${Buffer.concat(msg)}`;
+  return ret;
+}
+
 async function get_temp_and_files(arg) {
   let entry = await fs.stat(arg);
   if (entry.isFile() && arg.endsWith('.zip')) {
     let out_dir = path.join(path.dirname(arg), path.basename(arg, '.zip'));
-    let p7z = popen.spawn('exe/7za.exe', ['x', arg, '-y', '-o' + out_dir]);
-    await wait_child(p7z);
+    out_dir = out_dir.replace(/\.+$/, '');
+    await seven_zip('x', arg, '-y', '-o' + out_dir);
     let files = (await wait(fs.readdir.bind(fs, out_dir)))[1]
     .map(x => path.join(out_dir, x));
     return [out_dir, files];
@@ -44,19 +56,23 @@ async function spawn_conv(file, optimize) {
   .concat(optimize ? ['png:-'] : ['-define', 'webp:lossless=true', 'webp:-']);
   let guetzli_opt = ['--quality', '95', '-', '-'];
 
-  let convert = popen.spawn('exe/convert.exe', convert_opt);
+  let exe = path.join(__dirname, 'exe/convert.exe');
+  let convert = popen.spawn(exe, convert_opt);
   convert.stderr.pipe(process.stdout);
   let bufs = [];
   if (optimize) {
-    let guetzli = popen.spawn('exe/guetzli.exe', guetzli_opt);
+    exe = path.join(__dirname, 'exe/guetzli.exe');
+    let guetzli = popen.spawn(exe, guetzli_opt);
     guetzli.stderr.pipe(process.stdout);
     guetzli.stdout.on('data', d => { bufs.push(d); });
     convert.stdout.pipe(guetzli.stdin);
-    if (await wait_child(guetzli) != 0) return false;
+    if (await wait_child(guetzli) != 0)
+      await Promise.reject(`guetzli: ${file}`);
   }
   else {
     convert.stdout.on('data', d => { bufs.push(d); });
-    if (await wait_child(convert) != 0) return false;
+    if (await wait_child(convert) != 0)
+      await Promise.reject(`convert: ${file}`);
   }
   return Buffer.concat(bufs);
 }
@@ -84,10 +100,6 @@ async function determine_extension(file) {
 
 async function revise_pic(file) {
   let data = await spawn_conv(file, false);
-  if (data === false) {
-    console.log(`failure: ${file}`);
-    return;
-  }
   let stat = await fs.stat(file);
 
   let base = file.slice(0, file.lastIndexOf('.'));
@@ -134,6 +146,9 @@ async function convert(args) {
       prom.then(() => {
         console.log(`[${new Date().toLocaleTimeString()}] Processed ${file}`);
         prom.done = true;
+      }, reason => {
+        console.log(reason);
+        prom.done = true;
       });
       proms.push(prom);
       group.push(prom);
@@ -141,11 +156,10 @@ async function convert(args) {
     if (temp) folder_proms.push(Promise.all(group).then(async() => {
       try {
         await fs.remove(arg);
-        let p7z = popen.spawn('exe/7za.exe', ['a', arg, '-y', temp + '/*']);
-        await wait_child(p7z);
+        await seven_zip('a', arg, '-y', temp + '/*');
         await rmrf(temp)
       }
-      catch (e) {}
+      catch (e) { console.log(e); }
     }));
   }
   await Promise.all(proms.concat(folder_proms));
@@ -161,10 +175,8 @@ if (require.main === module) {
     rl.question(`uncaught: ${err}`, () => rl.close());
     process.chdir(pushd);
   });
-  process.chdir(__dirname);
   convert(process.argv.slice(2)).then(() => {
     console.log(`[${new Date().toLocaleTimeString()}] Complete.`);
-    process.chdir(pushd);
     rl.close();
   });
 }
