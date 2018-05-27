@@ -1,6 +1,7 @@
 ﻿const fs = require('fs-extra');
 const path = require('path');
 const popen = require('child_process');
+const process = require('process');
 const readline = require('readline');
 const stream = require('stream');
 
@@ -35,7 +36,7 @@ async function get_temp_and_files(arg) {
   let entry = await fs.stat(arg);
   if (entry.isFile() && arg.endsWith('.zip')) {
     let out_dir = path.join(path.dirname(arg), path.basename(arg, '.zip'));
-    out_dir = out_dir.replace(/\.+$/, '');
+    out_dir = path.resolve(out_dir)
     await seven_zip('x', arg, '-y', '-o' + out_dir);
     let files = (await wait(fs.readdir.bind(fs, out_dir)))[1]
     .map(x => path.join(out_dir, x));
@@ -79,7 +80,7 @@ async function spawn_conv(file, optimize) {
 
 async function determine_extension(file) {
   let fd = await fs.open(file, 'r');
-  let buf = new Buffer(12);
+  let buf = new Buffer.alloc(12);
   await fs.read(fd, buf, 0, buf.length, 0);
   fs.close(fd);
   let sig = buf.latin1Slice();
@@ -129,8 +130,9 @@ async function rmrf(path) {
 async function convert(args) {
   let proms = [], folder_proms = [];
   for (let arg of args) {
+    let target = path.resolve(arg);
     let group = [], temp, files;
-    try { [temp, files] = await get_temp_and_files(arg); }
+    try { [temp, files] = await get_temp_and_files(target); }
     catch (e) {
       console.log(`[${new Date().toLocaleTimeString()}] ${e}`);
       continue;
@@ -143,20 +145,23 @@ async function convert(args) {
       }
       console.log(`[${new Date().toLocaleTimeString()}] Process ${file}`);
       let prom = revise_pic(file);
-      prom.then(() => {
+      prom = prom.then(() => {
         console.log(`[${new Date().toLocaleTimeString()}] Processed ${file}`);
         prom.done = true;
       }, reason => {
         console.log(reason);
         prom.done = true;
-      });
+      });;
       proms.push(prom);
       group.push(prom);
     }
     if (temp) folder_proms.push(Promise.all(group).then(async() => {
       try {
-        await fs.remove(arg);
-        await seven_zip('a', arg, '-y', temp + '/*');
+        await fs.remove(target);
+        let prev_cwd = process.cwd();
+        process.chdir(temp);
+        await seven_zip('a', target, '-y', '*');
+        process.chdir(prev_cwd);
         await rmrf(temp)
       }
       catch (e) { console.log(e); }

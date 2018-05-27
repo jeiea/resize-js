@@ -8,7 +8,10 @@
       "type": "node",
       "request": "launch",
       "name": "Launch Program",
-      "program": "${workspaceRoot}/resize.js"
+      "program": "${workspaceRoot}/resize.js",
+      "args": [
+        "tt - 복사본.zip"
+      ],
     },
     {
       "type": "node",
@@ -16,6 +19,12 @@
       "name": "Attach to Process",
       "processId": "${command:PickProcess}",
       "port": 5858
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Test snippet",
+      "program": "${workspaceRoot}/debug.js"
     }
   ]
 }
