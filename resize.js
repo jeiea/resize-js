@@ -100,6 +100,8 @@ async function determine_extension(file) {
 }
 
 async function revise_pic(file) {
+  if (file.endsWith('.webp')) return;
+
   let data = await spawn_conv(file, false);
   let stat = await fs.stat(file);
 
@@ -151,7 +153,7 @@ async function convert(args) {
       }, reason => {
         console.log(reason);
         prom.done = true;
-      });;
+      });
       proms.push(prom);
       group.push(prom);
     }
