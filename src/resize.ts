@@ -80,7 +80,7 @@ async function spawnConv(file: string, optimize: boolean): Promise<Buffer> {
 async function determineExtension(file: string): Promise<string> {
   const fd = await fs.open(file, "r");
   const buf = Buffer.alloc(12);
-  await fs.read(fd, buf, 0, buf.length, 0);
+  await fd.read(buf, 0, buf.length, 0);
   await fd.close();
   const sig = buf.toString();
   if (sig.startsWith("\xFF\xD8\xFF")) {
@@ -173,27 +173,27 @@ async function convert(args: string[]): Promise<void> {
           process.chdir(prevCmd);
           await rmrf(temp);
         }
-        catch (e) { console.log(e); }
+        catch (e) {
+          console.log(e);
+        }
       }));
     }
   }
   await Promise.all(proms.concat(folderProms));
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const pushd = process.cwd();
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
   process.on("uncaughtException", err => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
     rl.question(`uncaught: ${err}`, () => rl.close());
     process.chdir(pushd);
   });
-  convert(process.argv.slice(2)).then(() => {
-    console.log(`[${new Date().toLocaleTimeString()}] Complete.`);
-    rl.close();
-  });
+  await convert(process.argv.slice(2));
+  console.log(`[${new Date().toLocaleTimeString()}] Complete.`);
 }
 
 if (require.main === module) {
