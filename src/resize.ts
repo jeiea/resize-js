@@ -1,4 +1,4 @@
-﻿import * as fs from 'fs-extra';
+﻿import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as popen from 'child_process';
 import * as readline from 'readline';
@@ -9,12 +9,6 @@ async function wait_child(child) {
       if (code === null) reject(signal);
       else resolve(code);
     });
-  });
-}
-
-async function wait(fn) {
-  return new Promise((resolve, reject) => {
-    fn((...args) => resolve(args));
   });
 }
 
@@ -36,14 +30,14 @@ async function get_temp_and_files(arg) {
     let out_dir = path.join(path.dirname(arg), path.basename(arg, '.zip'));
     out_dir = path.resolve(out_dir)
     await seven_zip('x', arg, '-y', '-o' + out_dir);
-    let files = (await wait(fs.readdir.bind(fs, out_dir)))[1]
-      .map(x => path.join(out_dir, x));
-    return [out_dir, files];
+    let fileNames = await fs.readdir(out_dir);
+    let paths = fileNames.map(x => path.join(out_dir, x));
+    return [out_dir, paths];
   }
   else if (entry.isDirectory()) {
-    let files = (await wait(fs.readdir.bind(fs, arg)))[1]
-      .map(x => path.join(arg, x));
-    return [null, files];
+    let fileNames = await fs.readdir(arg);
+    let paths = fileNames.map(x => path.join(arg, x));
+    return [null, paths];
   }
   else {
     return [null, arg];
@@ -80,7 +74,7 @@ async function determine_extension(file) {
   let fd = await fs.open(file, 'r');
   let buf = Buffer.alloc(12);
   await fs.read(fd, buf, 0, buf.length, 0);
-  fs.close(fd);
+  await fd.close();
   let sig = buf.toString();
   if (sig.startsWith('\xFF\xD8\xFF')) {
     return '.jpg';
@@ -113,7 +107,9 @@ async function revise_pic(file) {
   let target = base + '.webp';
   await fs.writeFile(target, data);
 
-  if (file !== target) await fs.remove(file);
+  if (file !== target) {
+    await fs.unlink(file);
+  }
 }
 
 async function rmrf(path) {
@@ -132,7 +128,9 @@ async function convert(args) {
   for (let arg of args) {
     let target = path.resolve(arg);
     let group = [], temp, files;
-    try { [temp, files] = await get_temp_and_files(target); }
+    try {
+      [temp, files] = await get_temp_and_files(target);
+    }
     catch (e) {
       console.log(`[${new Date().toLocaleTimeString()}] ${e}`);
       continue;
@@ -157,7 +155,7 @@ async function convert(args) {
     }
     if (temp) folder_proms.push(Promise.all(group).then(async () => {
       try {
-        await fs.remove(target);
+        await fs.unlink(target);
         let prev_cwd = process.cwd();
         process.chdir(temp);
         await seven_zip('a', target, '-y', '-mx=0', '*');

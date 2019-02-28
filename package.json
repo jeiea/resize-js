@@ -4,10 +4,8 @@
   "description": "",
   "main": "resize.js",
   "dependencies": {
-    "fs-extra": "^7.0.1"
   },
   "devDependencies": {
-    "@types/fs-extra": "^5.0.5",
     "@types/node": "^11.9.5"
   },
   "scripts": {
