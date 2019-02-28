@@ -1,7 +1,9 @@
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
+# executables
 /exe/
+
+# dependencies
+node_modules/
+
+# build results
+*.js
+*.js.map

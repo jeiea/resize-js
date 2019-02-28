@@ -1,9 +1,7 @@
-﻿const fs = require('fs-extra');
-const path = require('path');
-const popen = require('child_process');
-const process = require('process');
-const readline = require('readline');
-const stream = require('stream');
+﻿import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as popen from 'child_process';
+import * as readline from 'readline';
 
 async function wait_child(child) {
   return new Promise((resolve, reject) => {
@@ -39,12 +37,12 @@ async function get_temp_and_files(arg) {
     out_dir = path.resolve(out_dir)
     await seven_zip('x', arg, '-y', '-o' + out_dir);
     let files = (await wait(fs.readdir.bind(fs, out_dir)))[1]
-    .map(x => path.join(out_dir, x));
+      .map(x => path.join(out_dir, x));
     return [out_dir, files];
   }
   else if (entry.isDirectory()) {
-    files = (await wait(fs.readdir.bind(fs, arg)))[1]
-    .map(x => path.join(arg, x));
+    let files = (await wait(fs.readdir.bind(fs, arg)))[1]
+      .map(x => path.join(arg, x));
     return [null, files];
   }
   else {
@@ -54,7 +52,7 @@ async function get_temp_and_files(arg) {
 
 async function spawn_conv(file, optimize) {
   let convert_opt = [file, '-normalize', '-resize', '1920x1080>']
-  .concat(optimize ? ['png:-'] : ['-define', 'webp:lossless=true', 'webp:-']);
+    .concat(optimize ? ['png:-'] : ['-define', 'webp:lossless=true', 'webp:-']);
   let guetzli_opt = ['--quality', '95', '-', '-'];
 
   let exe = path.join(__dirname, 'exe/convert.exe');
@@ -80,10 +78,10 @@ async function spawn_conv(file, optimize) {
 
 async function determine_extension(file) {
   let fd = await fs.open(file, 'r');
-  let buf = new Buffer.alloc(12);
+  let buf = Buffer.alloc(12);
   await fs.read(fd, buf, 0, buf.length, 0);
   fs.close(fd);
-  let sig = buf.latin1Slice();
+  let sig = buf.toString();
   if (sig.startsWith('\xFF\xD8\xFF')) {
     return '.jpg';
   }
@@ -143,26 +141,26 @@ async function convert(args) {
     for (let file of files) {
       if (proms.length >= 4) {
         await Promise.race(proms);
-        proms = proms.filter(p => !p.done);
+        // proms = proms.filter(p => !p.done);
       }
       console.log(`[${new Date().toLocaleTimeString()}] Process ${file}`);
       let prom = revise_pic(file);
       prom = prom.then(() => {
         console.log(`[${new Date().toLocaleTimeString()}] Processed ${file}`);
-        prom.done = true;
+        proms = proms.filter(p => p !== prom);
       }, reason => {
         console.log(reason);
-        prom.done = true;
+        proms = proms.filter(p => p !== prom);
       });
       proms.push(prom);
       group.push(prom);
     }
-    if (temp) folder_proms.push(Promise.all(group).then(async() => {
+    if (temp) folder_proms.push(Promise.all(group).then(async () => {
       try {
         await fs.remove(target);
         let prev_cwd = process.cwd();
         process.chdir(temp);
-        await seven_zip('a', target, '-y', '*');
+        await seven_zip('a', target, '-y', '-mx=0', '*');
         process.chdir(prev_cwd);
         await rmrf(temp)
       }
