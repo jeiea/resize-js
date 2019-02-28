@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import * as readline from "readline";
 
-async function wait_child(child: popen.ChildProcess) {
+async function waitChild(child: popen.ChildProcess): Promise<number> {
   return new Promise((resolve, reject) => {
     child.on("exit", (code, signal) => {
       if (code === null) {
@@ -16,25 +16,25 @@ async function wait_child(child: popen.ChildProcess) {
   });
 }
 
-async function seven_zip(...args: string[]) {
+async function sevenZip(...args: string[]): Promise<number> {
   const msg = [];
   const exe = path.join(__dirname, "exe/7za.exe");
   const p7z = popen.spawn(exe, args);
   p7z.stdout.on("data", d => { msg.push(d); });
   p7z.stderr.on("data", d => { msg.push(d); });
-  const ret = await wait_child(p7z);
+  const ret = await waitChild(p7z);
   if (ret > 1) {
     throw new Error(`7za error occured: ${ret}\n${Buffer.concat(msg)}`);
   }
   return ret;
 }
 
-async function get_temp_and_files(arg: string) {
+async function getTempAndFiles(arg: string): Promise<[string, string | string[]]> {
   const entry = await fs.stat(arg);
   if (entry.isFile() && arg.endsWith(".zip")) {
     let outDir = path.join(path.dirname(arg), path.basename(arg, ".zip"));
     outDir = path.resolve(outDir);
-    await seven_zip("x", arg, "-y", "-o" + outDir);
+    await sevenZip("x", arg, "-y", "-o" + outDir);
     const fileNames = await fs.readdir(outDir);
     const paths = fileNames.map(x => path.join(outDir, x));
     return [outDir, paths];
@@ -49,7 +49,7 @@ async function get_temp_and_files(arg: string) {
   }
 }
 
-async function spawn_conv(file: string, optimize: boolean) {
+async function spawnConv(file: string, optimize: boolean): Promise<Buffer> {
   const convertOpt = [file, "-normalize", "-resize", "1920x1080>"]
     .concat(optimize ? ["png:-"] : ["-define", "webp:lossless=true", "webp:-"]);
   const guetzliOpt = ["--quality", "95", "-", "-"];
@@ -64,20 +64,20 @@ async function spawn_conv(file: string, optimize: boolean) {
     guetzli.stderr.pipe(process.stdout);
     guetzli.stdout.on("data", d => { bufs.push(d); });
     convProc.stdout.pipe(guetzli.stdin);
-    if (await wait_child(guetzli) !== 0) {
+    if (await waitChild(guetzli) !== 0) {
       await Promise.reject(`guetzli: ${file}`);
     }
   }
   else {
     convProc.stdout.on("data", d => { bufs.push(d); });
-    if (await wait_child(convProc) !== 0) {
+    if (await waitChild(convProc) !== 0) {
       await Promise.reject(`convert: ${file}`);
     }
   }
   return Buffer.concat(bufs);
 }
 
-async function determine_extension(file: string) {
+async function determineExtension(file: string): Promise<string> {
   const fd = await fs.open(file, "r");
   const buf = Buffer.alloc(12);
   await fs.read(fd, buf, 0, buf.length, 0);
@@ -98,15 +98,15 @@ async function determine_extension(file: string) {
   return null;
 }
 
-async function revise_pic(file: string) {
+async function revisePic(file: string): Promise<void> {
   if (file.endsWith(".webp")) { return; }
 
-  const data = await spawn_conv(file, false);
+  const data = await spawnConv(file, false);
   const stat = await fs.stat(file);
 
   const base = file.slice(0, file.lastIndexOf("."));
   if (stat.size < data.length) {
-    const ext = await determine_extension(file);
+    const ext = await determineExtension(file);
     if (ext === null || file.endsWith(ext)) { return; }
     return fs.rename(file, base + ext);
   }
@@ -120,7 +120,7 @@ async function revise_pic(file: string) {
 }
 
 // tslint:disable-next-line: no-shadowed-variable
-async function rmrf(path: string) {
+async function rmrf(path: string): Promise<void> {
   const proms = [];
   for (const file of await fs.readdir(path)) {
     const cur = path + "/" + file;
@@ -131,7 +131,7 @@ async function rmrf(path: string) {
   await fs.rmdir(path);
 }
 
-async function convert(args: string[]) {
+async function convert(args: string[]): Promise<void> {
   let proms = [];
   const folderProms = [];
   for (const arg of args) {
@@ -140,7 +140,7 @@ async function convert(args: string[]) {
     let temp;
     let files;
     try {
-      [temp, files] = await get_temp_and_files(target);
+      [temp, files] = await getTempAndFiles(target);
     }
     catch (e) {
       console.log(`[${new Date().toLocaleTimeString()}] ${e}`);
@@ -152,7 +152,7 @@ async function convert(args: string[]) {
         await Promise.race(proms);
       }
       console.log(`[${new Date().toLocaleTimeString()}] Process ${file}`);
-      let prom = revise_pic(file);
+      let prom = revisePic(file);
       prom = prom.then(() => {
         console.log(`[${new Date().toLocaleTimeString()}] Processed ${file}`);
         proms = proms.filter(p => p !== prom);
@@ -169,7 +169,7 @@ async function convert(args: string[]) {
           await fs.unlink(target);
           const prevCmd = process.cwd();
           process.chdir(temp);
-          await seven_zip("a", target, "-y", "-mx=0", "*");
+          await sevenZip("a", target, "-y", "-mx=0", "*");
           process.chdir(prevCmd);
           await rmrf(temp);
         }
@@ -180,7 +180,7 @@ async function convert(args: string[]) {
   await Promise.all(proms.concat(folderProms));
 }
 
-function main() {
+function main(): void {
   const pushd = process.cwd();
   const rl = readline.createInterface({
     input: process.stdin,
