@@ -7,3 +7,5 @@ node_modules/
 # build results
 *.js
 *.js.map
+
+*.log

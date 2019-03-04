@@ -3,6 +3,8 @@
   "rules": {
     "arrow-parens": false,
     "no-console": false,
+    "no-shadowed-variable": false,
+    "max-classes-per-file": false,
     "one-line": false,
     "typedef": [true, "call-signature", "parameter", "member-variable-declaration"]
   }
