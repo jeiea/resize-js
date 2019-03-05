@@ -57,7 +57,7 @@ export class Tools {
     const p7z = this.spawn(exe, args);
     const res = await waitResult(p7z);
     if (res.code > 1) {
-      throw new Error(`7za error occured: ${res.code}\n${res.err}`);
+      throw new Error(`7za error occured: ${res.code}\n${res.out}${res.err}`);
     }
     return res.code;
   }

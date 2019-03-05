@@ -5,6 +5,8 @@
 node_modules/
 
 # build results
+/build/
+/dist/
 *.js
 *.js.map
 

@@ -4,7 +4,7 @@
     "sourceMap": true,
     "moduleResolution": "node",
     "module": "commonjs",
-    "outDir": "."
+    "outDir": "./build"
   },
   "exclude": [
     "node_modules"
