@@ -123,11 +123,11 @@ class ZipFileConversion implements ITreeConverter {
       yield task;
       convs.push(task.promise);
     }
-    Promise.all(convs).then(this.cleanup);
+    Promise.all(convs).then(this.cleanup.bind(this));
   }
 
-  private cleanup = async (): Promise<void> => {
-    await this.archiveFrom(this.extracted.sourcePath);
+  private async cleanup(): Promise<void> {
+    await this.rearchiveFrom(this.extracted.sourcePath);
     await rmrf(this.extracted.sourcePath);
     this.complete.resolve();
   }
@@ -142,10 +142,10 @@ class ZipFileConversion implements ITreeConverter {
     await new Tools().sevenZip("x", this.sourcePath, "-y", "-o" + outDir);
   }
 
-  private async archiveFrom(dir: string): Promise<void> {
+  private async rearchiveFrom(dir: string): Promise<void> {
+    await fs.unlink(this.sourcePath);
     const prevCwd = process.cwd();
     process.chdir(dir);
-    await fs.unlink(this.sourcePath);
     await new Tools().sevenZip("a", this.sourcePath, "-y", "-mx=0", "*");
     process.chdir(prevCwd);
   }

@@ -12,7 +12,7 @@
       "type": "node",
       "request": "launch",
       "name": "Test snippet",
-      "program": "${workspaceRoot}/tests/debug.js",
+      "program": "${workspaceRoot}/build/tests/debug.js",
       "runtimeArgs": ["--trace-warnings"]
     }
   ]
